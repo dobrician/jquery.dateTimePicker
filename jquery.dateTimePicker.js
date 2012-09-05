@@ -246,7 +246,7 @@ jQuery.widget("ui.dateTimePicker", {
 
   _buildYearSelector: function(){
     var select;
-    var first = 1900
+    var first = 1900;
     var last = Math.max(this._todaysDate.getFullYear(), this._viewingMonth.getFullYear());
     select = $('<select>').addClass('yearSelector');
     var currentYear = this._viewingMonth.getFullYear();
