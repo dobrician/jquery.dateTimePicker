@@ -1,4 +1,5 @@
 var DateTimePicker = {
+  initialized: false,
   dateTimeCallingElement: function(wrapper) {
     var id = wrapper.attr('id');
     id = id.replace('_picker','');
@@ -44,6 +45,8 @@ jQuery.widget("ui.dateTimePicker", {
   _init: function() {
     var callingElement = this;
     this._callingElement = this;
+
+    this._initEvents();
 
     this.element.focus(function() {
 
@@ -93,6 +96,7 @@ jQuery.widget("ui.dateTimePicker", {
       } else if (this.options.showDate) {
         var match = value.match(DateTimePicker.dateRegExp);
         this._selectedDate = new Date(parseFloat(match[3]), parseFloat(match[1]) - 1, parseFloat(match[2]));
+
       } else if (this.options.showTime) {
         var match = value.match(DateTimePicker.timeRegExp);
         var hour = parseFloat(match[1]);
@@ -222,10 +226,35 @@ jQuery.widget("ui.dateTimePicker", {
     var calendarHeader = $('<div>').attr('class', 'headerRow');
     calendarHeader.append($('<div>').attr('class', 'prevYear').html('&lt;&lt;'));
     calendarHeader.append($('<div>').attr('class', 'prevMonth').html('&lt;'));
-    calendarHeader.append($('<div>').attr('class', 'monthName').html(this._getMonths()[this._viewingMonth.getMonth()] + " " + this._viewingMonth.getFullYear()));
+    calendarHeader.append($('<div>').attr('class', 'monthName').html(this._buildMonthSelector().after(this._buildYearSelector())));
     calendarHeader.append($('<div>').attr('class', 'nextMonth').html('&gt;'));
     calendarHeader.append($('<div>').attr('class', 'nextYear').html('&gt;&gt;'));
     return calendarHeader;
+  },
+
+  _buildMonthSelector: function(){
+    var select, opt;
+    select = $('<select>').addClass('monthSelector');
+    var currentMonth = this._getMonths()[this._viewingMonth.getMonth()];
+    $(this.options.months).each(function(i, o){
+      var opt = $("<option " + (o === currentMonth ? 'SELECTED ' : '') + "value='" + o + "'>");
+      opt.text(o);
+      select.append(opt);
+    });
+    return select;
+  },
+
+  _buildYearSelector: function(){
+    var select;
+    var first = 1900
+    var last = Math.max(this._todaysDate.getFullYear(), this._viewingMonth.getFullYear());
+    select = $('<select>').addClass('yearSelector');
+    var currentYear = this._viewingMonth.getFullYear();
+    for(i = last ; i > first ; i --){
+      select.append($("<option " + (i === currentYear ? 'SELECTED ' : '') + "value='" + i + "'>").text(i));
+    }
+
+    return select;
   },
 
   _getCalendarDaysRow: function() {
@@ -338,8 +367,19 @@ jQuery.widget("ui.dateTimePicker", {
   },
 
   changeMonth: function(monthChange) {
-    this._pickerWrapper.remove();
     this._viewingMonth.setMonth(this._viewingMonth.getMonth() + monthChange);
+    this._pickerWrapper.remove();
+    this._callingElement.createDateTimePicker();
+  },
+
+  setDate: function(){
+    var year = parseInt( $('.dateTimePickerWrapper select.yearSelector').val() );
+    var month = this.options.months.indexOf( $('.dateTimePickerWrapper select.monthSelector').val() );
+
+    this._viewingMonth = new Date(year, month, 1);
+    this._selectedDate = new Date(year, month, Math.min(this.options.daysInMonth[month], this._selectedDate.getDate()));
+    this._insertVal();
+    this._pickerWrapper.remove();
     this._callingElement.createDateTimePicker();
   },
 
@@ -401,65 +441,72 @@ jQuery.widget("ui.dateTimePicker", {
     console.log(this._callingElement._viewingMonth);
     console.log("Selected Date:");
     console.log(this._callingElement._selectedDate);    
-  }
-});
+  },
 
-jQuery(function(){
-  jQuery('.dateTimePickerWrapper .weekday, .dateTimePickerWrapper .weekend').live('click',function(){
-    var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
-    DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('clickDay', jQuery(this));
-  });
-
-  jQuery('.dateTimePickerWrapper .closeSelector').live('click', function() {
-    DateTimePicker.removeWrappers();
-  });
-
-  jQuery('.dateTimePickerWrapper .amSelector, .dateTimePickerWrapper .pmSelector').live('click', function() {
-    var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
-    DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('clickAmPm', jQuery(this));
-  });
-
-  jQuery('.dateTimePickerWrapper .hour').live('click', function() {
-    var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
-    DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('clickHour', jQuery(this));
-  });
-
-  jQuery('.dateTimePickerWrapper .minute').live('click', function() {
-    var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
-    DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('clickMinute', jQuery(this));
-  });
-
-  jQuery('.dateTimePickerWrapper .prevYear').live('click',function() {
-    var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
-    DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('changeMonth', -12);
-  });
-
-  jQuery('.dateTimePickerWrapper .prevMonth').live('click',function() {
-    var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
-    DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('changeMonth', -1);
-  });
-
-  jQuery('.dateTimePickerWrapper .nextMonth').live('click',function() {
-    var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
-    DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('changeMonth', 1);
-  });
-
-  jQuery('.dateTimePickerWrapper .nextYear').live('click',function() {
-    var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
-    DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('changeMonth', 12);
-  });
-
-  jQuery('.weekend, .weekday, .closeSelector, .hour, .minute, .amSelector, .pmSelector').live('mouseover mouseout', function(event) {
-    if (event.type == 'mouseover') {
-      $(this).addClass('dayHover');
-    } else {
-      $(this).removeClass('dayHover');
+  _initEvents: function(){
+    if(DateTimePicker.initialized){
+      return;
     }
-  });
+    jQuery('body').on('click', '.dateTimePickerWrapper .weekday, .dateTimePickerWrapper .weekend', function(){
+      var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
+      DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('clickDay', jQuery(this));
+    });
 
-  jQuery('body, input').focus(function(e) {
-    DateTimePicker.checkAndRemoveWrapper(e);
-  }).click(function(e) {
-    DateTimePicker.checkAndRemoveWrapper(e);
-  });
+    jQuery('body').on('click', '.dateTimePickerWrapper .closeSelector', DateTimePicker.removeWrappers);
+
+    jQuery('body').on('click', '.dateTimePickerWrapper .amSelector, .dateTimePickerWrapper .pmSelector', function() {
+      var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
+      DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('clickAmPm', jQuery(this));
+    });
+
+    jQuery('body').on('click', '.dateTimePickerWrapper .hour', function() {
+      var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
+      DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('clickHour', jQuery(this));
+    });
+
+    jQuery('body').on('click', '.dateTimePickerWrapper .minute', function() {
+      var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
+      DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('clickMinute', jQuery(this));
+    });
+
+    jQuery('body').on('click', '.dateTimePickerWrapper .prevYear', function() {
+      var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
+      DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('changeMonth', -12);
+    });
+
+    jQuery('body').on('click', '.dateTimePickerWrapper .prevMonth', function() {
+      var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
+      DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('changeMonth', -1);
+    });
+
+    jQuery('body').on('click', '.dateTimePickerWrapper .nextMonth', function() {
+      var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
+      DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('changeMonth', 1);
+    });
+
+    jQuery('body').on('click', '.dateTimePickerWrapper .nextYear', function() {
+      var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
+      DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('changeMonth', 12);
+    });
+
+    jQuery('body').on('change', '.dateTimePickerWrapper .monthName select', function() {
+      var wrapper = jQuery(this).closest('.dateTimePickerWrapper');
+      DateTimePicker.dateTimeCallingElement(wrapper).dateTimePicker('setDate');
+    });
+
+    jQuery('body').on('mouseover', '.weekend, .weekday, .closeSelector, .hour, .minute, .amSelector, .pmSelector', function(event) {
+      $(this).addClass('dayHover');
+    });
+
+    jQuery('body').on('mouseout', '.weekend, .weekday, .closeSelector, .hour, .minute, .amSelector, .pmSelector', function(event) {
+      $(this).removeClass('dayHover');
+    });
+
+    jQuery('body, input').focus(function(e) {
+      DateTimePicker.checkAndRemoveWrapper(e);
+    }).click(function(e) {
+      DateTimePicker.checkAndRemoveWrapper(e);
+    });
+    DateTimePicker.initialized = true;
+  }
 });
